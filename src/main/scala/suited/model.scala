@@ -4,8 +4,8 @@ import scala.annotation.implicitNotFound
 
 package object model {
   implicit def scalar[T: Supported](value: T) = Scalar(value)
-  implicit def scalarField[T: Supported](pair: (String, T)): Field = Field(pair._1, pair._2)
-  implicit def valueField(pair: (String, Value)): Field = Field.tupled(pair)
+  implicit def scalarField[T: Supported](pair: (String, T)): Field = Field(pair._1, Scalar(pair._2))
+  implicit def valueField[V <: Value](pair: (String, V)): Field = Field(pair._1, pair._2)
 }
 
 package model {
