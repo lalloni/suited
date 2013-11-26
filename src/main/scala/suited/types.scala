@@ -1,49 +1,82 @@
 package suited
 
-import scala.reflect.runtime.{ universe ⇒ u }
-import u.TypeTag
+import scala.reflect.runtime.universe._
 
 import suited.model._
 
-import suited.types.validators.{ Validator, Good, Bad }
-
 package types {
+
+  import Helpers.assignable
 
   sealed trait CardinalityType {
     def validates(count: Int): Boolean
     def check(count: Int): Option[Fault]
+    def message: String
   }
 
   case object Unbounded extends CardinalityType {
     def validates(count: Int) = true
     def check(count: Int) = None
+    val message = "Unbounded"
   }
 
-  case class Exactly(quantity: Int) extends CardinalityType {
+  case class Equal(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count == quantity
-    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality is not $quantity", count))
+    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is not $quantity"))
+    val message = s"$quantity"
   }
 
-  case class AtMost(quantity: Int) extends CardinalityType {
+  case class EqualOrLess(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count <= quantity
-    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality is greater than $quantity", count))
+    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is greater than $quantity"))
+    val message = s"$quantity or less"
   }
 
-  case class AtLeast(quantity: Int) extends CardinalityType {
+  case class EqualOrMore(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count >= quantity
-    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality is lesser than $quantity", count))
+    def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is lesser than $quantity"))
+    val message = s"$quantity or more"
   }
 
-  case class Fault(message: String, evidence: Any)
+  case class Fault(message: String)
+
+  sealed trait Result {
+    def &&(other: Result): Result
+    def ||(other: Result): Result
+    def map(f: Fault ⇒ Fault): Result
+  }
+
+  case object Good extends Result {
+    def &&(other: Result): Result = other
+    def ||(other: Result): Result = this
+    def map(f: Fault ⇒ Fault): Result = this
+  }
+
+  case class Bad(faults: List[Fault]) extends Result {
+    def &&(other: Result): Result = other match {
+      case Good             ⇒ this
+      case Bad(otherFaults) ⇒ Bad(faults ++ otherFaults)
+    }
+    def ||(other: Result): Result = other match {
+      case Good             ⇒ Good
+      case Bad(otherFaults) ⇒ Bad(faults ++ otherFaults)
+    }
+    def map(f: Fault ⇒ Fault): Result =
+      Bad(faults.map(f))
+  }
+
+  sealed trait Validator[T] {
+    def apply(value: T): Result
+  }
 
   sealed trait Report {
-    type ReportValue <: Value
-    type ReportValueType <: ValueType
     def source: ValueType
     def target: Option[Value]
     def failed: Boolean
-    def faults: List[Fault]
     def passed: Boolean = !failed
+    def faults: List[Fault]
+    def message: String
+    override def toString = message
   }
 
   sealed trait ValueType {
@@ -51,31 +84,29 @@ package types {
     def check(value: Value): ReportType
   }
 
-  case class ScalarReport[S: Support](source: ScalarType[S], target: Option[Value], faults: List[Fault]) extends Report {
-    type ReportValue = Scalar[S]
-    type RepoteValueType = ScalarType[ReportValue]
+  case class ScalarReport[S: Support: TypeTag](source: ScalarType[S], target: Option[Value], faults: List[Fault]) extends Report {
     def failed = faults.nonEmpty
+    def message = faults.map(_.message).mkString(", ")
   }
 
-  case class ScalarType[S: Support](validator: Option[Validator[S]])(implicit m: Manifest[S]) extends ValueType {
+  case class ScalarType[S: Support: TypeTag](validator: Option[Validator[S]]) extends ValueType {
     type ReportType = ScalarReport[S]
-    val runtimeClass = Helpers.weirdness(m.runtimeClass)
     def check(value: Value) = {
       value match {
-        case Scalar(v) if runtimeClass.isInstance(v) ⇒
+        case Scalar(v) if (assignable(typeTag[S], v)) ⇒
           ScalarReport(this, Some(value), validator.toList.flatMap(_(v.asInstanceOf[S]) match {
             case Good        ⇒ Nil
             case Bad(faults) ⇒ faults
           }))
-        case other ⇒ ScalarReport(this, Some(value), List(Fault("Unexpected value", value)))
+        case other ⇒
+          ScalarReport(this, Some(value), List(Fault(s"Unexpected value ${value.description} when expecting Scalar of ${typeTag[S].tpe}")))
       }
     }
   }
 
   case class SequenceReport(source: SequenceType, target: Option[Value], faults: List[Fault], reports: List[Report]) extends Report {
-    type ReportValue = Sequence
-    type ReportValueType = SequenceType
     def failed = faults.nonEmpty || reports.exists(_.failed)
+    def message = s"Sequence (${source.cardinality.message}) { ${(faults.map(_.message) ++ reports.zipWithIndex.filter(_._1.failed).map(p ⇒ s"Element ${p._2} { ${p._1.message} }")).mkString(", ")} }"
   }
 
   case class SequenceType(cardinality: CardinalityType, elementType: ValueType) extends ValueType {
@@ -83,25 +114,25 @@ package types {
     def check(value: Value) =
       value match {
         case Sequence(values) ⇒ SequenceReport(this, Some(value), cardinality.check(values.size).toList, values.map(elementType.check).toList)
-        case other            ⇒ SequenceReport(this, Some(value), List(Fault(s"Unexpected value", value)), List.empty)
+        case other            ⇒ SequenceReport(this, Some(value), List(Fault(s"Unexpected value ${value.description} when expecting a Sequence")), List.empty)
       }
   }
 
   case class FieldReport[T <: ValueType](source: FieldType[T], target: Option[Field], faults: List[Fault], valueReport: Option[T#ReportType]) {
     def failed = faults.nonEmpty || valueReport.exists(_.failed)
+    def message = s"""Field "${source.name}" { ${(faults.map(_.message) ++ valueReport.map(_.message)).mkString(", ")} }"""
   }
 
   case class FieldType[T <: ValueType](name: String, valueType: T) {
     def check(field: Field): FieldReport[T] =
       FieldReport(this, Some(field), List.empty, Some(valueType.check(field.value)))
     def check(fields: List[Field]): FieldReport[T] =
-      fields.find(_.name == name).fold(FieldReport(this, None, List(Fault(s"Missing '$name' field", fields)), None))(check)
+      fields.find(_.name == name).fold(FieldReport(this, None, List(Fault("Missing")), None))(check)
   }
 
   case class RecordReport(source: RecordType, target: Option[Value], faults: List[Fault], reports: List[FieldReport[_]]) extends Report {
-    type ReportValue = Record
-    type ReportValueType = RecordType
     def failed = faults.nonEmpty || reports.exists(_.failed)
+    def message = s"Record { ${(faults ++ reports.filter(_.failed).map(_.message)).mkString(", ")} }"
   }
 
   case class RecordType(fieldTypes: FieldType[_]*) extends ValueType with UniqueFieldNames {
@@ -110,14 +141,13 @@ package types {
     def check(value: Value) =
       value match {
         case Record(fields) ⇒ RecordReport(this, Some(value), List.empty, fieldTypes.map(_.check(fields)).toList)
-        case other          ⇒ RecordReport(this, Some(value), List(Fault(s"Unexpected value", value)), List.empty)
+        case other          ⇒ RecordReport(this, Some(value), List(Fault(s"Unexpected value ${value.description} when expecting a Record")), List.empty)
       }
   }
 
   case class FusionReport(source: FusionType, target: Option[Value], faults: List[Fault], reports: List[RecordReport]) extends Report {
-    type ReportValue = Record
-    type ReportValueType = FusionType
     def failed = faults.nonEmpty || reports.exists(_.failed)
+    def message = s"Fusion { ${(faults ++ reports.zipWithIndex.filter(_._1.failed).map(p ⇒ s"Record ${p._2} { ${p._1.message} }")).mkString(", ")} }"
   }
 
   case class FusionType(recordTypes: RecordType*) extends ValueType with UniqueFieldNames {
@@ -126,40 +156,11 @@ package types {
     def check(value: Value) =
       value match {
         case Record(fields) ⇒ FusionReport(this, Some(value), Nil, recordTypes.map(_.check(value)).toList)
-        case other          ⇒ FusionReport(this, Some(value), List(Fault(s"Unexpected value", value)), List.empty)
+        case other          ⇒ FusionReport(this, Some(value), List(Fault(s"Unexpected value ${value.description} when expecting a Record")), List.empty)
       }
   }
 
   object validators {
-
-    sealed trait Result {
-      def &&(other: Result): Result
-      def ||(other: Result): Result
-      def map(f: Fault ⇒ Fault): Result
-    }
-
-    case object Good extends Result {
-      def &&(other: Result): Result = other
-      def ||(other: Result): Result = this
-      def map(f: Fault ⇒ Fault): Result = this
-    }
-
-    case class Bad(faults: List[Fault]) extends Result {
-      def &&(other: Result): Result = other match {
-        case Good             ⇒ this
-        case Bad(otherFaults) ⇒ Bad(faults ++ otherFaults)
-      }
-      def ||(other: Result): Result = other match {
-        case Good             ⇒ Good
-        case Bad(otherFaults) ⇒ Bad(faults ++ otherFaults)
-      }
-      def map(f: Fault ⇒ Fault): Result =
-        Bad(faults.map(f))
-    }
-
-    sealed trait Validator[T] {
-      def apply(value: T): Result
-    }
 
     implicit class ValidatorOps[T](self: Validator[T]) {
       def and(other: Validator[T]): Validator[T] = And(self, other)
@@ -168,7 +169,7 @@ package types {
 
     case class Condition[T](name: String)(condition: T ⇒ Boolean) extends Validator[T] {
       def apply(value: T): Result =
-        if (condition(value)) Good else Bad(List(Fault(s"Condition not met: $name", value)))
+        if (condition(value)) Good else Bad(List(Fault(s"""Condition "$name" not met by $value""")))
     }
 
     case class And[T](a: Validator[T], b: Validator[T]) extends Validator[T] {
@@ -179,18 +180,17 @@ package types {
       def apply(value: T): Result = a(value) || b(value)
     }
 
-    case class View[T, V](name: String, validator: Validator[V])(view: T ⇒ V) extends Validator[T] {
+    case class View[T, V: TypeTag](name: String, validator: Validator[V])(view: T ⇒ V) extends Validator[T] {
       def apply(value: T): Result =
-        validator.apply(view(value)).map(f ⇒ Fault(s"As $name: ${f.message}", f.evidence))
+        validator(view(value)).map(f ⇒ Fault(s"${f.message} when validating $value as ${typeTag[V].tpe}"))
     }
 
-    case class Type[S: Support](implicit m: Manifest[S]) extends Validator[S] {
-      val runtimeClass = Helpers.weirdness(m.runtimeClass)
+    case class Type[S: Support](implicit tag: TypeTag[S]) extends Validator[S] {
       def apply(value: S): Result =
-        if (runtimeClass.isInstance(value)) Good else Bad(List(Fault("Unexpected value type", value)))
+        if (assignable(typeTag[S], value)) Good else Bad(List(Fault(s"Unexpected value type of $value when expecting ${typeTag[S].tpe}")))
     }
 
-    def any[S: Support: Manifest]: Validator[S] = Type[S]
+    def any[S: Support: TypeTag]: Validator[S] = Type[S]
     def validate[T](name: String)(predicate: T ⇒ Boolean): Validator[T] = Condition(name)(predicate)
 
     val nonEmpty: Validator[String] = validate[String]("Non empty")(_.nonEmpty)
@@ -205,8 +205,8 @@ package types {
 
     def matches(pattern: String): Validator[String] = validate[String](s"Matches /$pattern/")(_.matches(pattern))
 
-    def lessThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"Less than $number")(n.lt(number, _))
-    def moreThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"More than $number")(n.gt(number, _))
+    def lessThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"Less than $number")(n.lt(_, number))
+    def moreThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"More than $number")(n.gt(_, number))
 
     def hasLength(validator: Validator[Int]): Validator[String] = View("Length", validator)(_.size)
 
@@ -221,6 +221,12 @@ package types {
   }
 
   object dsl {
+
+    def anyScalar[S: Support: TypeTag] = ScalarType[S](None)
+    def anyScalar[S: Support: TypeTag](validator: Validator[S]) = ScalarType[S](Some(validator))
+    def anySequence(sequenceType: SequenceType): SequenceType = sequenceType
+    def anyRecord(recordType: RecordType): RecordType = recordType
+    def anyFusion(fusionType: FusionType): FusionType = fusionType
 
     implicit def fieldTypeCanBeRecordType[T <: ValueType](fieldType: FieldType[T]): RecordType = RecordType(fieldType)
 
@@ -245,21 +251,27 @@ package types {
     }
 
     implicit class SequenceBuilder1(quantity: Int) {
-      def are(valueType: ValueType): SequenceType = SequenceType(Exactly(quantity), valueType)
-      def orLess(valueType: ValueType): SequenceType = SequenceType(AtMost(quantity), valueType)
-      def orMore(valueType: ValueType): SequenceType = SequenceType(AtLeast(quantity), valueType)
+      def of(valueType: ValueType): SequenceType = SequenceType(Equal(quantity), valueType)
+      def orLess(valueType: ValueType): SequenceType = SequenceType(EqualOrLess(quantity), valueType)
+      def orMore(valueType: ValueType): SequenceType = SequenceType(EqualOrMore(quantity), valueType)
     }
 
     val many = new {
-      def are(valueType: ValueType): SequenceType = SequenceType(Unbounded, valueType)
+      def of(valueType: ValueType): SequenceType = SequenceType(Unbounded, valueType)
     }
 
   }
 
   private[types] object Helpers {
-    val weirdness: Map[Class[_], Class[_]] = Map[Class[_], Class[_]](
-      classOf[Integer] → classOf[Int],
-      Integer.TYPE → classOf[Int]
-    ).withDefault(identity)
+    def assignable[S](target: TypeTag[S], value: Any): Boolean =
+      target.mirror.runtimeClass(target.tpe).isAssignableFrom(value.getClass) || (
+        value match {
+          case _: java.lang.Integer if target.tpe =:= typeOf[Int] ⇒ true
+          case _: java.lang.Long if target.tpe =:= typeOf[Long] ⇒ true
+          case _: java.lang.Float if target.tpe =:= typeOf[Float] ⇒ true
+          case _: java.lang.Double if target.tpe =:= typeOf[Double] ⇒ true
+          case _ ⇒ false
+        })
   }
+
 }
