@@ -5,16 +5,25 @@ import scala.reflect.runtime.universe._
 
 package model {
 
-  sealed trait Value
+  sealed trait Value {
+    def description: String
+  }
 
-  case class Scalar[S: Support](value: S) extends Value
+  case class Scalar[S: Support: TypeTag](value: S) extends Value {
+    def description = s"""Scalar of ${typeTag[S].tpe} "$value""""
+  }
 
-  case class Sequence(values: List[Value]) extends Value
+  case class Sequence(values: List[Value]) extends Value {
+    def description = s"Sequence of ${values.map(_.description).mkString(", ")}"
+  }
 
-  case class Field(name: String, value: Value)
+  case class Field(name: String, value: Value) {
+    def description = s"$name is ${value.description}"
+  }
 
   case class Record(fields: List[Field]) extends Value with UniqueFieldNames {
     def fieldNames = fields.toList.map(_.name)
+    def description = s"Record of ${fields.map(_.description).mkString(", ")}"
   }
 
   @implicitNotFound("${S} is not a supported scalar type")
@@ -56,10 +65,10 @@ package model {
 
   object dsl {
 
-    implicit def scalar[S: Support](value: S): Scalar[S] =
+    implicit def scalar[S: Support: TypeTag](value: S): Scalar[S] =
       Scalar(value)
 
-    implicit def field[S: Support](pair: (String, S)): Field =
+    implicit def field[S: Support: TypeTag](pair: (String, S)): Field =
       Field(pair._1, Scalar(pair._2))
 
     implicit def field(pair: (String, Value)): Field =
