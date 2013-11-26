@@ -2,52 +2,39 @@ package suited
 
 import org.scalatest.FunSuite
 import model._
+import model.dsl._
 import types._
 import types.dsl._
 import types.validators._
 import org.scalatest.Matchers
-import org.scalautils._
 
 class TypeTest extends FunSuite with Matchers {
 
-  val good = a[Good[Ok, Error]]
-  val bad = a[Bad[Ok, Error]]
-
   test("ScalarType") {
-    ScalarType(any[String]).apply(Scalar("papa")) should be (good)
-    ScalarType(any[String]).apply(Scalar(200)) should be (bad)
-    RecordType(FieldType("name", any[String])).apply(Record("name" → "pepe")) should be (good)
-    ("name" is any[String]) ~ ("age" is any[Integer]) apply (Record("name" → "pepe", "age" → 2)) should be (good)
-    ("name" is (any[String] and isCUIT and hasLength(lessThan(5)))) ~ ("age" is (any[Int] and lessThan(100))) apply (Record("name" → "123456", "age" → 2)) should be (good)
+    ScalarType[String](None).check(Scalar("papa")) should be ('passed)
+    ScalarType[String](None).check(Scalar(200)) should be ('failed)
+    RecordType(FieldType("name", ScalarType[String](None))).check(record("name" → "pepe")) should be ('passed)
+    ("name" is any[String]) ~ ("age" is any[Int]) check (record("name" → "pepe", "age" → 2)) should be ('passed)
+    ("name" is (any[String] and isCUIT)) ~ ("age" is (any[Int] and lessThan(100))) check (record("name" → "12345678901", "age" → 2)) should be ('passed)
   }
 
   val contribuyente = (
     ("cuit" is (any[String] and isCUIT)) ~
     ("tipo" is any[Int]) ~
     ("periodo" is ("año" is any[Int]) ~ ("mes" is any[Long])) ~
-    ("impuestos" are (one is any[String]) & (many are any[Int]) & (many are ("a" is any[String]))) ~
-    ("blas" are
-      (2 are any[Long]) &
-      (3 orLess any[String]) &
-      (2 orMore any[Int]) &
-      (many are ("name" is any[BigDecimal])) &
-      (5 are ("id" is any[Int]) ~ ("name" is any[String])) &
-      (one is
-        ("id" is any[Int]) ~
-        ("name" is any[String])
-      )
-    )
+    ("impuestos" are (many are any[Int])) ~
+    ("blas" are (3 orLess any[String]))
   )
 
   val recordTypeFull =
     RecordType(
-      FieldType("name", ScalarType(any[String] and nonEmpty)),
-      FieldType("age", ScalarType(any[Int])),
-      FieldType("tags", SequenceType(Segment(Unbounded, ScalarType(any[String])))),
-      FieldType("bla", SequenceType(Segment(Exactly(1), ScalarType(any[String])), Segment(Exactly(1), ScalarType(any[Int])))),
+      FieldType("name", ScalarType(Some(Type[String] and nonEmpty))),
+      FieldType("age", ScalarType(Some(Type[Int]))),
+      FieldType("tags", SequenceType(Unbounded, ScalarType(Some(Type[String])))),
+      FieldType("bla", SequenceType(Exactly(1), ScalarType(Some(Type[String])))),
       FieldType("address", RecordType(
-        FieldType("street", ScalarType(any[String])),
-        FieldType("number", ScalarType(any[Long]))
+        FieldType("street", ScalarType(Some(Type[String]))),
+        FieldType("number", ScalarType(Some(Type[Long])))
       ))
     )
 
@@ -55,7 +42,7 @@ class TypeTest extends FunSuite with Matchers {
     ("name" is any[String]) ~
       ("age" is any[Int]) ~
       ("tags" are (many are any[String])) ~
-      ("bla" are (one is any[String]) & (5 are any[Int])) ~
+      ("bla" are (5 are any[Int])) ~
       ("address" is ("street" is any[String]) ~ ("number" is any[Long])) ~
       ("algo" is recordTypeFull + contribuyente)
 
@@ -67,27 +54,27 @@ class TypeTest extends FunSuite with Matchers {
 
     println(simple)
 
-    val rec1 = Record("entero" → 6, "nombre" → "pepe")
+    val rec1 = record("entero" → 6, "nombre" → "pepe")
     println(rec1)
-    println(simple.apply(rec1))
+    println(simple.check(rec1))
 
-    val rec2 = Record("entero" → 6, "nombre" → 2)
+    val rec2 = record("entero" → 6, "nombre" → 2)
     println(rec2)
-    println(simple.apply(rec2))
+    println(simple.check(rec2))
 
-    println(ScalarType(any[String]).apply(Scalar("pepe")))
+    println(ScalarType(Some(Type[String])).check(Scalar("pepe")))
 
-    println(ScalarType(any[Int]).apply(Scalar("pepe")))
+    println(ScalarType(Some(Type[Int])).check(Scalar("pepe")))
 
-    println(ScalarType(any[Int]).apply(Sequence(2, 2)))
+    println(ScalarType(Some(Type[Int])).check(sequence(2, 2)))
 
-    println(RecordType(FieldType("name", ScalarType(any[String]))).apply(Record("name" → 2)))
+    println(RecordType(FieldType("name", ScalarType(Some(Type[String])))).check(record("name" → 2)))
 
-    println(RecordType(FieldType("name", ScalarType(any[String]))).apply(Record("name" → "pedro", "age" → 9)))
+    println(RecordType(FieldType("name", ScalarType(Some(Type[String])))).check(record("name" → "pedro", "age" → 9)))
 
-    println(RecordType(FieldType("name", ScalarType(any[String])), FieldType("age", ScalarType(any[Long]))).apply(Record("name" → "pedro", "age" → 9l)))
+    println(RecordType(FieldType("name", ScalarType(Some(Type[String]))), FieldType("age", ScalarType(Some(Type[Long])))).check(record("name" → "pedro", "age" → 9l)))
 
-    println(SequenceType(Segment(Unbounded, ScalarType(any[Int]))).apply(Sequence(2, 2, "a")))
+    println(SequenceType(Unbounded, ScalarType(Some(Type[Int]))).check(sequence(2, 2, "a")))
 
   }
 

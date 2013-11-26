@@ -1,3 +1,3 @@
-organization := "afip.dit.audit"
+organization := "afip.dit"
 
-name := "audit-typed"
+name := "suited"

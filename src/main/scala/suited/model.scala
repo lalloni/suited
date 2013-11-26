@@ -1,52 +1,75 @@
 package suited
 
 import scala.annotation.implicitNotFound
-
-package object model {
-  implicit def scalar[T: Supported](value: T) = Scalar(value)
-  implicit def scalarField[T: Supported](pair: (String, T)): Field = Field(pair._1, Scalar(pair._2))
-  implicit def valueField[V <: Value](pair: (String, V)): Field = Field(pair._1, pair._2)
-}
+import scala.reflect.runtime.universe._
 
 package model {
 
   sealed trait Value
 
+  case class Scalar[S: Support](value: S) extends Value
+
+  case class Sequence(values: List[Value]) extends Value
+
   case class Field(name: String, value: Value)
 
-  case class Record(fields: Field*) extends Value with UniqueFieldNames {
+  case class Record(fields: List[Field]) extends Value with UniqueFieldNames {
     def fieldNames = fields.toList.map(_.name)
   }
 
-  case class Sequence(values: Value*) extends Value
+  @implicitNotFound("${S} is not a supported scalar type")
+  sealed case class Support[S] private[model] ()
 
-  case class Scalar[T: Supported](value: T) extends Value
+  object Support {
 
-  @implicitNotFound("The type ${T} is not a supported scalar type")
-  sealed class Supported[T] private[model] ()
+    implicit val string = new Support[String]
 
-  object Supported {
+    implicit val integer = new Support[Integer]
+    implicit val int = new Support[Int]
+    implicit val long = new Support[Long]
+    implicit val bigInt = new Support[BigInt]
 
-    implicit val integerSupport = new Supported[Integer]()
-    implicit val intSupport = new Supported[Int]()
-    implicit val longSupport = new Supported[Long]()
-    implicit val javaLongSupport = new Supported[java.lang.Long]()
-    implicit val bigIntSupport = new Supported[BigInt]()
+    implicit val float = new Support[Float]
+    implicit val double = new Support[Double]
+    implicit val bigDecimal = new Support[BigDecimal]
 
-    implicit val floatSupport = new Supported[Float]()
-    implicit val doubleSupport = new Supported[Double]()
-    implicit val bigDecimalSupport = new Supported[BigDecimal]()
+    import spire.math.{ Natural, Rational, Real, SafeLong, Number }
 
-    implicit val stringSupport = new Supported[String]()
+    implicit val natural = new Support[Natural]
+    implicit val safeLong = new Support[SafeLong]
+
+    implicit val rational = new Support[Rational]
+    implicit val real = new Support[Real]
+
+    implicit val number = new Support[Number]
 
     import org.joda.time.{ DateTime, Interval, LocalDate, Period, YearMonth }
 
-    implicit val dateTimeSupport = new Supported[DateTime]()
-    implicit val localDateSupport = new Supported[LocalDate]()
-    implicit val yearMonthSupport = new Supported[YearMonth]()
+    implicit val dateTime = new Support[DateTime]
+    implicit val localDate = new Support[LocalDate]
+    implicit val yearMonth = new Support[YearMonth]
 
-    implicit val periodSupport = new Supported[Period]
-    implicit val intervalSupport = new Supported[Interval]
+    implicit val period = new Support[Period]
+    implicit val interval = new Support[Interval]
+
+  }
+
+  object dsl {
+
+    implicit def scalar[S: Support](value: S): Scalar[S] =
+      Scalar(value)
+
+    implicit def field[S: Support](pair: (String, S)): Field =
+      Field(pair._1, Scalar(pair._2))
+
+    implicit def field(pair: (String, Value)): Field =
+      Field(pair._1, pair._2)
+
+    def record(fields: Field*): Record =
+      Record(fields.toList)
+
+    def sequence(values: Value*): Sequence =
+      Sequence(values.toList)
 
   }
 
