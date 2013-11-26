@@ -80,6 +80,20 @@ package model {
     def sequence(values: Value*): Sequence =
       Sequence(values.toList)
 
+    implicit class RecordOps(self: Record) {
+      def ++(other: Record): Record =
+        Record(self.fields ++ other.fields)
+      def ++(fields: Field*): Record =
+        Record(self.fields ++ fields)
+    }
+
+    implicit class SequenceOps(self: Sequence) {
+      def ++(other: Sequence): Sequence =
+        Sequence(self.values ++ other.values)
+      def ++(values: Value*): Sequence =
+        Sequence(self.values ++ values)
+    }
+
   }
 
 }
