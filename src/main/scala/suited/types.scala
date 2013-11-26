@@ -76,7 +76,6 @@ package types {
     def passed: Boolean = !failed
     def faults: List[Fault]
     def message: String
-    override def toString = message
   }
 
   sealed trait ValueType {
@@ -195,25 +194,25 @@ package types {
 
     val nonEmpty: Validator[String] = validate[String]("Non empty")(_.nonEmpty)
     val isEmpty: Validator[String] = validate[String]("Empty")(_.isEmpty)
-    val isInteger: Validator[String] = validate[String]("Integer format")(_.matches("""[+-]?\d+"""))
-    val isDecimal: Validator[String] = validate[String]("Decimal format")(_.matches("""[+-]?\d+(\.\d+)?"""))
-    val isCUIT: Validator[String] = validate[String]("CUIT format")(_.matches("""\d{11}"""))
-    val isCES: Validator[String] = validate[String]("CES format")(_.matches("""[0A-Z]{6}[0-9]{4}"""))
-    val isIPv4: Validator[String] = validate[String]("IPv4 format")(_.matches("""((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"""))
-    val isIPv6: Validator[String] = validate[String]("IPv6 format")(_.matches("""(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""))
-    val isIP: Validator[String] = isIPv4 or isIPv6
+    val anInteger: Validator[String] = validate[String]("Integer format")(_.matches("""[+-]?\d+"""))
+    val aDecimal: Validator[String] = validate[String]("Decimal format")(_.matches("""[+-]?\d+(\.\d+)?"""))
+    val CUIT: Validator[String] = validate[String]("CUIT format")(_.matches("""\d{11}"""))
+    val CES: Validator[String] = validate[String]("CES format")(_.matches("""[0A-Z]{6}[0-9]{4}"""))
+    val anIPv4: Validator[String] = validate[String]("IPv4 format")(_.matches("""((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"""))
+    val anIPv6: Validator[String] = validate[String]("IPv6 format")(_.matches("""(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"""))
+    val anIP: Validator[String] = anIPv4 or anIPv6
 
     def matches(pattern: String): Validator[String] = validate[String](s"Matches /$pattern/")(_.matches(pattern))
 
-    def lessThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"Less than $number")(n.lt(_, number))
-    def moreThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"More than $number")(n.gt(_, number))
+    def lesserThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"Less than $number")(n.lt(_, number))
+    def greaterThan[N](number: N)(implicit n: Numeric[N]): Validator[N] = validate(s"More than $number")(n.gt(_, number))
 
     def hasLength(validator: Validator[Int]): Validator[String] = View("Length", validator)(_.size)
 
-    def int(f: Validator[Int]): Validator[String] = isInteger and View("Int", f)(_.toInt)
-    def long(f: Validator[Long]): Validator[String] = isInteger and View("Long", f)(_.toLong)
-    def bigInt(f: Validator[BigInt]): Validator[String] = isInteger and View("BigInt", f)(BigInt(_))
-    def bigDecimal(f: Validator[BigDecimal]): Validator[String] = isDecimal and View("BigDecimal", f)(BigDecimal(_))
+    def int(f: Validator[Int]): Validator[String] = anInteger and View("Int", f)(_.toInt)
+    def long(f: Validator[Long]): Validator[String] = anInteger and View("Long", f)(_.toLong)
+    def bigInt(f: Validator[BigInt]): Validator[String] = anInteger and View("BigInt", f)(BigInt(_))
+    def bigDecimal(f: Validator[BigDecimal]): Validator[String] = aDecimal and View("BigDecimal", f)(BigDecimal(_))
 
     implicit def validatorCanBeScalarType[T: Manifest: Support](validator: Validator[T]): ScalarType[T] =
       ScalarType(Some(validator))

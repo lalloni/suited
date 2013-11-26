@@ -14,9 +14,9 @@ class TypeTest extends FunSuite with Matchers {
     anyScalar[String] check scalar("papa") should be ('passed)
     anyScalar[Int] check scalar(100) should be ('passed)
     anyScalar[String] check Scalar(200) should be ('failed)
-    anyScalar[String](hasLength(lessThan(5))) check Scalar(200) should be ('failed)
-    anyScalar[String](hasLength(lessThan(5))) check Scalar("12345") should be ('failed)
-    anyScalar[String](hasLength(lessThan(5))) check Scalar("1234") should be ('passed)
+    anyScalar[String](hasLength(lesserThan(5))) check Scalar(200) should be ('failed)
+    anyScalar[String](hasLength(lesserThan(5))) check Scalar("12345") should be ('failed)
+    anyScalar[String](hasLength(lesserThan(5))) check Scalar("1234") should be ('passed)
   }
 
   test("SequenceType") {
