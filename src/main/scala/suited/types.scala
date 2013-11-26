@@ -17,25 +17,25 @@ package types {
   case object Unbounded extends CardinalityType {
     def validates(count: Int) = true
     def check(count: Int) = None
-    val message = "Unbounded"
+    def message = "Unbounded"
   }
 
   case class Equal(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count == quantity
     def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is not $quantity"))
-    val message = s"$quantity"
+    def message = s"$quantity"
   }
 
   case class EqualOrLess(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count <= quantity
     def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is greater than $quantity"))
-    val message = s"$quantity or less"
+    def message = s"$quantity or less"
   }
 
   case class EqualOrMore(quantity: Int) extends CardinalityType {
     def validates(count: Int) = count >= quantity
     def check(count: Int) = if (validates(count)) None else Some(Fault(s"Cardinality $count is lesser than $quantity"))
-    val message = s"$quantity or more"
+    def message = s"$quantity or more"
   }
 
   case class Fault(message: String)
