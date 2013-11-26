@@ -15,7 +15,7 @@ class ModelTest extends FunSuite with Matchers {
     build("pepe") should equal (Scalar("pepe"))
   }
 
-  val data =
+  test("Build record") {
     record(
       "nombre" → "Pablo",
       "edad" → 99.0,
@@ -31,5 +31,6 @@ class ModelTest extends FunSuite with Matchers {
           "período" → 10.days),
       "vigencia" → LocalDate.now.minus(6.months).toInterval.withPeriodAfterStart(60.days),
       "intervalo" → Interval.parse("201001/P1M"))
+  }
 
 }
