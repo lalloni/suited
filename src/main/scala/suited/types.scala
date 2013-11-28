@@ -159,6 +159,17 @@ package types {
       }
   }
 
+  case class AnyValueType private[types] () extends ValueType {
+    case class ReportType private[AnyValueType] (source: ValueType, target: Option[Value]) extends Report {
+      val failed = false
+      val faults = Nil
+      val message = "Value { }"
+    }
+    def check(value: Value) = ReportType(this, Some(value))
+  }
+
+  object AnyValueType extends AnyValueType
+
   object validators {
 
     implicit class ValidatorOps[T](self: Validator[T]) {
@@ -221,10 +232,12 @@ package types {
 
   object dsl {
 
+    val anyValue = AnyValueType
     def anyScalar[S: Support: TypeTag] = ScalarType[S](None)
     def anyScalar[S: Support: TypeTag](validator: Validator[S]) = ScalarType[S](Some(validator))
     def anySequence(sequenceType: SequenceType): SequenceType = sequenceType
     def anyRecord(recordType: RecordType): RecordType = recordType
+    val anyRecord: RecordType = new RecordType
     def anyFusion(fusionType: FusionType): FusionType = fusionType
 
     implicit def fieldTypeCanBeRecordType[T <: ValueType](fieldType: FieldType[T]): RecordType = RecordType(fieldType)
@@ -233,6 +246,7 @@ package types {
       def is[S: Support](scalarType: ScalarType[S]): FieldType[ScalarType[S]] = FieldType(name, scalarType)
       def is(recordType: RecordType): FieldType[RecordType] = FieldType(name, recordType)
       def is(fusionType: FusionType): FieldType[FusionType] = FieldType(name, fusionType)
+      def is(anyValueType: AnyValueType): FieldType[AnyValueType] = FieldType(name, anyValueType)
       def are(sequenceType: SequenceType): FieldType[SequenceType] = FieldType(name, sequenceType)
     }
 

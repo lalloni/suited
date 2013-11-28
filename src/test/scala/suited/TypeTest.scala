@@ -7,8 +7,16 @@ import types._
 import types.dsl._
 import types.validators._
 import org.scalatest.Matchers
+import org.joda.time.LocalDate
 
 class TypeTest extends FunSuite with Matchers {
+
+  test("AnyValueType") {
+    anyValue check 1 should be ('passed)
+    anyValue check "a" should be ('passed)
+    anyValue check record("x" → 1) should be ('passed)
+    anyValue check sequence(1, "a", LocalDate.now) should be ('passed)
+  }
 
   test("ScalarType") {
     anyScalar[String] check scalar("papa") should be ('passed)
@@ -31,12 +39,17 @@ class TypeTest extends FunSuite with Matchers {
     anySequence(2 of any[Int]) check sequence(1, 2, 3) should be ('failed)
     anySequence(2 of any[Int]) check sequence(1, 2) should be ('passed)
     anySequence(2 of any[Int]) check sequence(1) should be ('failed)
+    anySequence(many of anyValue) check sequence(1, "a", 2.0) should be ('passed)
   }
 
   test("RecordType") {
     ("a" is any[Int]) ~ ("b" is any[Int]) check record("a" → 1, "b" → 2) should be ('passed)
     ("a" is any[Int]) ~ ("b" is any[Int]) check record("a" → 1) should be ('failed)
     ("a" is any[Int]) ~ ("b" is any[Int]) check record("a" → 1, "b" → 2, "c" → 3) should be ('passed)
+    anyRecord check record() should be ('passed)
+    anyRecord check record("a" → 1) should be ('passed)
+    anyRecord check 1 should be ('failed)
+    anyRecord check sequence(1, 2, 3) should be ('failed)
   }
 
   test("FusionType") {

@@ -75,6 +75,16 @@ class Examples extends FunSuite with Matchers {
 
     println(result4.message) // Imprime: Fusion {  }
 
+    val tipo3 = (
+      ("algo" is anyRecord) ~
+      ("cosas" are (many of anyValue)) ~
+      ("valor" is anyValue)
+    )
+
+    println(tipo3.check(record("algo" → record(), "cosas" → sequence("a", 2), "valor" → 0)).message) // Imprime: Record {  }
+
+    println(tipo3.check(record("algo" → 1, "cosas" → 2)).message) // Imprime: Record { Field "algo" { Record { Fault(Unexpected value Scalar of Int "1" when expecting a Record) } }, Field "cosas" { Sequence (Unbounded) { Unexpected value Scalar of Int "2" when expecting a Sequence } }, Field "valor" { Missing } }
+
   }
 
 }
