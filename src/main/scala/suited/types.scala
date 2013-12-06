@@ -1,5 +1,6 @@
 package suited
 
+import scala.language.implicitConversions
 import scala.reflect.runtime.universe._
 
 import suited.model._

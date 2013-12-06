@@ -1,6 +1,7 @@
 package suited
 
 import scala.annotation.implicitNotFound
+import scala.language.implicitConversions
 import scala.reflect.runtime.universe._
 
 package model {
