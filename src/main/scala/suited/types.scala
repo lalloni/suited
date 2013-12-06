@@ -270,9 +270,11 @@ package types {
       def orMore(valueType: ValueType): SequenceType = SequenceType(EqualOrMore(quantity), valueType)
     }
 
-    val many = new {
+    class UnboundedSequenceTypeBuilder private[dsl] () {
       def of(valueType: ValueType): SequenceType = SequenceType(Unbounded, valueType)
     }
+
+    val many = new UnboundedSequenceTypeBuilder
 
   }
 
