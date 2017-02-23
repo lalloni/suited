@@ -11,6 +11,12 @@ import org.joda.time.LocalDate
 
 class TypeTest extends FunSuite with Matchers {
 
+  test("CES") {
+    CES check "AAAAAA0000" should be ('passed)
+    CES check "AAAAAAZ000" should be ('failed)
+    CES check "AAA2000000" should be ('passed)
+  }
+
   test("AnyValueType") {
     anyValue check 1 should be ('passed)
     anyValue check "a" should be ('passed)
